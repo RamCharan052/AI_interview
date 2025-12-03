@@ -7,28 +7,49 @@ AI Interview Prompt - Updated per team lead feedback
 
 def get_evaluation_prompt(question, answer, job_description, resume):
     """
-    Evaluate answer - LENIENT (focus on intent and effort)
+    Evaluate answer - Focus on distinguishing misunderstandings (for rephrasing) 
+    from intentional skips or completely irrelevant answers (to move on).
     """
-    prompt = f"""You are a professional interview evaluator. Evaluate this answer with focus on candidate's intent and effort.
+    prompt = f"""You are a professional interview evaluator, acting as a machine instruction tool. 
+    Evaluate this answer based on the candidate's engagement and the *relevance* of their attempt. 
+    Your primary goal is to determine if a **rephrasing** of the question is necessary.
 
 Question: "{question}"
 Candidate Answer: "{answer}"
 
-EVALUATION PHILOSOPHY:
-Mark as ADEQUATE (is_adequate: true) if answer shows ANY of:
-- ANY attempt to address the question (even brief)
-- Shows understanding or relevant thought
-- Contains any relevant information
-- Demonstrates effort to engage with the question
-- Has some connection to the topic
+EVALUATION PHILOSOPHY (MODIFIED FOR REPHRASING LOGIC):
 
-Mark as INADEQUATE (is_adequate: false) ONLY if:
-- Complete gibberish or random characters
-- Totally unrelated to the question with zero connection
-- No effort or intent to answer at all
+The interview should **MOVE FORWARD (NO REPHRASE)** if the answer is:
+1.  **A clear expression of not knowing/caring:** The candidate is intentionally skipping, declining to answer, or showing lack of interest.
+2.  **Totally Unrelated/Non-Sequitur:** The answer is so completely off-topic that it signals deep confusion or a deliberate pass on the subject matter, making a simple rephrase ineffective.
 
-IMPORTANT: Even short answers like "No", "Yes", "I don't know", "it is what it is" should be marked ADEQUATE (is_adequate: true) 
-but given appropriate low scores. The goal is to move forward with the interview, not block it.
+The interview should **TRIGGER REPHRASE** if the answer is:
+1.  **On a Similar Line but Doesn't Point to the Exact Question:** The candidate attempts to answer using relevant terminology or concepts but fails to address the specific core of the question, indicating a potential misunderstanding that a rephrase can fix.
+
+---
+### **DETERMINING ADEQUATE (NO REPHRASE) vs. INADEQUATE (TRIGGER REPHRASE):**
+---
+
+Mark as **ADEQUATE (is_adequate: true)** if the answer shows ANY of the following: 
+**(Action: MOVE TO NEXT QUESTION)**
+-   **Intentional Skip/Pass:** "I don't know," "Pass," "Skip," "No comment," "I'll circle back to that."
+-   **Minimal Engagement/Disinterest:** Single word responses (e.g., "Yes," "No," "Ok") or extremely vague, non-committal phrases ("it is what it is," "nothing much").
+-   **Completely Unrelated/Non-Sequitur:** The answer is so far off-topic that it's clearly not a productive attempt or misunderstanding of the *specific* question, e.g., asking about Loss Functions and answering about Python Syntax.
+
+Mark as **INADEQUATE (is_adequate: false)** ONLY if the answer shows the following: 
+**(Action: TRIGGER REPHRASE)**
+-   **Relevant Misunderstanding/Near Miss:** The candidate uses keywords or concepts **directly related** to the question's topic but fails to correctly address the core definition, function, or principle being asked. This suggests they *know of* the topic but *misinterpret* the question.
+-   **Complete gibberish or random characters:** (Standard failure case, treated as a technical error requiring rephrasing).
+
+**Examples based on Question: "Explain Root Mean Square Loss (RMSE) in ML model evaluation."**
+
+| Candidate Answer | Interpretation | Action | is_adequate |
+| :--- | :--- | :--- | :--- |
+| **"ML models are good to learn the patterns."** | *Relevant Misunderstanding/Near Miss.* Uses general ML concept but misses **RMSE**. | **TRIGGER REPHRASE** | **false** |
+| **"RMSE is for evaluating regression models and measures average magnitude of error."** | *Correct Answer.* Addresses question directly. | **MOVE FORWARD** | **true** |
+| **"I don't know, let's move on."** | *Intentional Skip/Pass.* Candidate declines to answer. | **MOVE FORWARD** | **true** |
+| **"Python is a good language."** | *Completely Unrelated/Non-Sequitur.* No connection to loss functions. | **MOVE FORWARD** | **true** |
+| **"adgjlajdfglaas"** | *Gibberish.* Technical error or non-response. | **TRIGGER REPHRASE** | **false** |
 
 SCORING GUIDELINES (Detailed and Elaborated):
 
@@ -37,22 +58,22 @@ Score 0:
 - Pure gibberish with no meaning
 - Random characters or symbols only
 
-Score 1-2: Minimal Effort
+Score 1-2: Minimal Effort (Typically **ADEQUATE** unless gibberish)
 - Single word responses: "No", "Yes", "ok", "yeah"
 - Non-committal: "I don't know", "Not sure", "Maybe"
 - Very vague: "it is what it is", "nothing much"
 - Shows almost no effort but has some intent
 - Answer is extremely brief (under 5 words)
 
-Score 3-4: Poor Response
+Score 3-4: Poor Response (Can be **ADEQUATE** or **INADEQUATE**)
 - Vague or unclear statements
 - Incomplete thoughts that trail off
-- Answers that barely touch the topic
+- Answers that barely touch the topic (e.g., the RMSE example of "ML models are good to learn the patterns.")
 - Very brief (5-15 words) without substance
 - Shows some intent but lacks detail
 - Partially relevant but doesn't address core question
 
-Score 5-6: Basic/Adequate Response
+Score 5-6: Basic/Adequate Response (Typically **ADEQUATE**)
 - Addresses the question with some relevance
 - Provides basic information (20-30 words)
 - Shows understanding but lacks depth
@@ -60,7 +81,7 @@ Score 5-6: Basic/Adequate Response
 - Demonstrates effort to answer properly
 - Somewhat relevant with minimal examples
 
-Score 7-8: Good Response
+Score 7-8: Good Response (Always **ADEQUATE**)
 - Clear and relevant answer
 - Provides specific details or examples
 - Well-structured thoughts (30-60 words)
@@ -68,16 +89,13 @@ Score 7-8: Good Response
 - Includes context or reasoning
 - Addresses question directly with substance
 
-Score 9-10: Excellent Response
+Score 9-10: Excellent Response (Always **ADEQUATE**)
 - Comprehensive and detailed answer
 - Multiple specific examples or scenarios
 - Well-articulated thoughts (60+ words)
 - Shows deep understanding and expertise
 - Provides context, reasoning, and outcomes
 - Impressive depth and clarity
-
-BE LENIENT: Focus on whether candidate is trying to engage, not perfection. 
-Even weak attempts should be marked ADEQUATE with appropriate low scores.
 
 Job Description: {job_description}
 Resume: {resume}
