@@ -1,5 +1,5 @@
 """
-AI Interview Bot - Updated per team lead feedback
+AI Interview Bot
 - Removed score threshold override
 - Score-based acknowledgments
 - Simplified logic
