@@ -1,56 +1,89 @@
 """
-AI Interview Prompt
-- Balanced evaluation
-- Professional rephrasing
-- Round-specific questions
-- Dynamic acknowledgments
+AI Interview Prompt - Updated per team lead feedback
+- Elaborated scoring guidelines
+- Removed strict inadequate criteria
+- More lenient evaluation
 """
 
 def get_evaluation_prompt(question, answer, job_description, resume):
     """
-    Evaluate answer - BALANCED (not too strict, not too lenient)
+    Evaluate answer - LENIENT (focus on intent and effort)
     """
-    prompt = f"""You are a professional interview evaluator. Evaluate this answer fairly.
+    prompt = f"""You are a professional interview evaluator. Evaluate this answer with focus on candidate's intent and effort.
 
 Question: "{question}"
 Candidate Answer: "{answer}"
 
-MARK AS INADEQUATE (is_adequate: false) ONLY if answer has ANY of these:
-1. Single word responses: "No", "Yes", "Pass", "Skip", "ok", "yeah", "idk"
-2. Explicit non-answers: "I don't know", "Not sure", "Can't answer", "skip this"
-3. Vague/meaningless phrases with NO substance: "it is what it is", "you overcome by doing that", "challenges are challenges"
-4. Incomplete trailing off: "recently i learned that", "troubleshooting does what"
-5. Less than 10 meaningful words
-6. Just repeats the question without answering
-7. Complete gibberish or totally unrelated
+EVALUATION PHILOSOPHY:
+Mark as ADEQUATE (is_adequate: true) if answer shows ANY of:
+- ANY attempt to address the question (even brief)
+- Shows understanding or relevant thought
+- Contains any relevant information
+- Demonstrates effort to engage with the question
+- Has some connection to the topic
 
-MARK AS ADEQUATE (is_adequate: true) if answer has ANY of:
-- Multiple sentences with relevant content
-- Specific technologies, projects, or examples mentioned
-- Clear attempt to address the question
-- Professional background or experience described
-- Any meaningful details about skills or work
+Mark as INADEQUATE (is_adequate: false) ONLY if:
+- Complete gibberish or random characters
+- Totally unrelated to the question with zero connection
+- No effort or intent to answer at all
 
-SCORING GUIDELINES (Be FAIR and BALANCED):
-- Score 1-2: Non-answers, gibberish, single words
-- Score 3-4: Vague or very brief (under 20 words)
-- Score 5-6: Basic adequate - addresses question with some detail
-- Score 7-8: Good - clear details, examples, relevant content
-- Score 9-10: Excellent - comprehensive, well-structured, impressive
+IMPORTANT: Even short answers like "No", "Yes", "I don't know", "it is what it is" should be marked ADEQUATE (is_adequate: true) 
+but given appropriate low scores. The goal is to move forward with the interview, not block it.
 
-EXAMPLES:
-❌ INADEQUATE: "nothing much", "idk", "you overcome by doing that" (vague, meaningless)
-✅ ADEQUATE: "I'm a Python developer with 5 years experience in Django" (has substance)
-✅ ADEQUATE: "I worked at X company where I built APIs using FastAPI" (specific details)
-✅ ADEQUATE: Any answer with 20+ words that addresses the question
+SCORING GUIDELINES (Detailed and Elaborated):
 
-BE GENEROUS: If candidate puts in effort and provides relevant info, mark adequate.
+Score 0:
+- Completely blank/empty response
+- Pure gibberish with no meaning
+- Random characters or symbols only
+
+Score 1-2: Minimal Effort
+- Single word responses: "No", "Yes", "ok", "yeah"
+- Non-committal: "I don't know", "Not sure", "Maybe"
+- Very vague: "it is what it is", "nothing much"
+- Shows almost no effort but has some intent
+- Answer is extremely brief (under 5 words)
+
+Score 3-4: Poor Response
+- Vague or unclear statements
+- Incomplete thoughts that trail off
+- Answers that barely touch the topic
+- Very brief (5-15 words) without substance
+- Shows some intent but lacks detail
+- Partially relevant but doesn't address core question
+
+Score 5-6: Basic/Adequate Response
+- Addresses the question with some relevance
+- Provides basic information (20-30 words)
+- Shows understanding but lacks depth
+- Has some specific details but limited
+- Demonstrates effort to answer properly
+- Somewhat relevant with minimal examples
+
+Score 7-8: Good Response
+- Clear and relevant answer
+- Provides specific details or examples
+- Well-structured thoughts (30-60 words)
+- Shows good understanding
+- Includes context or reasoning
+- Addresses question directly with substance
+
+Score 9-10: Excellent Response
+- Comprehensive and detailed answer
+- Multiple specific examples or scenarios
+- Well-articulated thoughts (60+ words)
+- Shows deep understanding and expertise
+- Provides context, reasoning, and outcomes
+- Impressive depth and clarity
+
+BE LENIENT: Focus on whether candidate is trying to engage, not perfection. 
+Even weak attempts should be marked ADEQUATE with appropriate low scores.
 
 Job Description: {job_description}
 Resume: {resume}
 
 Respond with ONLY valid JSON (no markdown):
-{{"is_adequate": true, "score": 7, "reason": "Brief reason"}}"""
+{{"is_adequate": true, "score": 5, "reason": "Brief reason for the score"}}"""
 
     return prompt
 
@@ -167,8 +200,10 @@ def get_start_interview_prompt():
     return "Let's begin the interview. Can you please introduce yourself and tell me about your background?"
 
 
-def get_encouragement_message(context="move_on"):
-    """Encouragement messages"""
+def get_encouragement_message(context="move_on", score=0):
+    """
+    Encouragement messages based on context and score
+    """
     import random
     
     if context == "rephrase":
@@ -195,6 +230,32 @@ def get_encouragement_message(context="move_on"):
             "No problem! Let's continue.",
             "That's okay! Moving on."
         ]
+    elif context == "adequate":
+        # Score-based acknowledgments for adequate responses
+        if score >= 8:
+            messages = [
+                "Excellent! That's impressive.",
+                "Outstanding answer!",
+                "Fantastic! Very well explained.",
+                "Brilliant response!",
+                "Perfect! That's exactly right."
+            ]
+        elif score >= 5:
+            messages = [
+                "Great, thanks for sharing!",
+                "Good answer!",
+                "That's helpful, appreciate it!",
+                "Nice, thank you!",
+                "Understood, thanks!"
+            ]
+        else:
+            messages = [
+                "Got it, thanks.",
+                "Okay, understood.",
+                "I see, thank you.",
+                "Alright, thanks.",
+                "Noted, appreciate it."
+            ]
     else:
         messages = ["Great!"]
     

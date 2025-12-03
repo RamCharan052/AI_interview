@@ -1,9 +1,8 @@
 """
-AI Interview Bot
-- Explicit score threshold check
-- Better question tracking
-- Robust rephrasing logic
-- Backend compatible JSON format
+AI Interview Bot - Updated per team lead feedback
+- Removed score threshold override
+- Score-based acknowledgments
+- Simplified logic
 """
 
 import json
@@ -18,7 +17,7 @@ from ai_interview_prompt import (
 )
 
 # API Configuration
-GEMINI_API_KEY = ""
+GEMINI_API_KEY = "AIzaSyDyn113sejmtGatyFaQneuqHrFfFmJv3Oc"
 GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
 
 
@@ -70,19 +69,17 @@ class AikamInterviewBot:
         self.asked_questions = []  # Store FULL questions
     
     def _evaluate_answer(self, question, answer):
-        """Evaluate answer with threshold check"""
+        """Evaluate answer - NO threshold override"""
         prompt = get_evaluation_prompt(question, answer, self.job_description, self.resume)
         
         try:
             result = call_gemini_api(prompt)
             
             score = result.get('score') or result.get('score_out_of_10') or 0
-            is_adequate = result.get('is_adequate', False)
+            is_adequate = result.get('is_adequate', True)  # Default to True
             reason = result.get('reason') or result.get('evaluation_reason') or "No reason"
             
-            # Override if score is very low (1-3)
-            if score <= 3:
-                is_adequate = False
+            # NO OVERRIDE - trust LLM evaluation completely
             
             return {
                 'is_adequate': is_adequate,
@@ -91,14 +88,14 @@ class AikamInterviewBot:
             }
         except Exception as e:
             print(f"[ERROR] Evaluation failed: {e}")
-            return {'is_adequate': False, 'score': 0, 'reason': f"Error: {e}"}
+            return {'is_adequate': True, 'score': 0, 'reason': f"Error: {e}"}
     
     def _rephrase_question(self, question):
         """Rephrase question"""
         prompt = get_rephrase_prompt(question)
         return call_gemini_api(prompt)
     
-    def _generate_new_question(self):
+    def _generate_new_question(self, score=0):
         """Generate new question"""
         prompt = get_new_question_prompt(
             self.current_round,
@@ -140,7 +137,7 @@ class AikamInterviewBot:
     def _handle_empty_answer(self):
         """Handle empty answer"""
         encouragement = get_encouragement_message("empty")
-        question_data = self._generate_new_question()
+        question_data = self._generate_new_question(0)
         
         self.current_question = question_data['question']
         self.is_rephrased = False
@@ -158,7 +155,7 @@ class AikamInterviewBot:
         }
     
     def _evaluate_and_proceed(self, answer):
-        """Evaluate and proceed with deterministic logic"""
+        """Evaluate and proceed - UPDATED LOGIC per team lead"""
         
         evaluation = self._evaluate_answer(self.current_question, answer)
         
@@ -172,27 +169,23 @@ class AikamInterviewBot:
         print(f"[DEBUG] Evaluation: adequate={is_adequate}, score={score}")
         print(f"[DEBUG] is_rephrased flag: {self.is_rephrased}")
         
-        # DETERMINISTIC DECISION
-        if is_adequate:
-            print(f"[DEBUG] Decision: ADEQUATE → Next question")
+        # UPDATED LOGIC per team lead
+        if (not is_adequate) and (not self.is_rephrased):
+            # Only rephrase if inadequate AND not already rephrased
+            print(f"[DEBUG] Decision: INADEQUATE + NOT REPHRASED → REPHRASE")
             print(f"[DEBUG] ========================================\n")
-            return self._ask_new_question(evaluation, True)
-        
+            return self._rephrase_current_question(evaluation)
         else:
-            # INADEQUATE
-            if not self.is_rephrased:
-                print(f"[DEBUG] Decision: INADEQUATE + NOT REPHRASED → REPHRASE")
-                print(f"[DEBUG] ========================================\n")
-                return self._rephrase_current_question(evaluation)
-            else:
-                print(f"[DEBUG] Decision: INADEQUATE + IS REPHRASED → NEW QUESTION")
-                print(f"[DEBUG] ========================================\n")
-                return self._ask_new_question(evaluation, False)
+            # All other cases: move to next question
+            # This includes: adequate OR (inadequate + already rephrased)
+            print(f"[DEBUG] Decision: IS_ADEQUATE or IS_REPHRASED → NEW QUESTION")
+            print(f"[DEBUG] ========================================\n")
+            return self._ask_new_question(evaluation, is_adequate)
     
     def _rephrase_current_question(self, evaluation):
         """Rephrase SAME question"""
         rephrase_data = self._rephrase_question(self.current_question)
-        encouragement = get_encouragement_message("rephrase")
+        encouragement = get_encouragement_message("rephrase", evaluation['score'])
         
         self.current_question = rephrase_data['rephrased_question']
         self.is_rephrased = True  # CRITICAL
@@ -209,8 +202,8 @@ class AikamInterviewBot:
         }
     
     def _ask_new_question(self, evaluation, is_adequate):
-        """Ask NEW question"""
-        question_data = self._generate_new_question()
+        """Ask NEW question with score-based acknowledgment"""
+        question_data = self._generate_new_question(evaluation['score'])
         
         self.current_question = question_data['question']
         self.is_rephrased = False  # RESET
@@ -220,10 +213,12 @@ class AikamInterviewBot:
         
         if is_adequate:
             action = "adequate_response"
-            message = f"{question_data['acknowledgment']} {question_data['question']}"
+            # Score-based acknowledgment
+            acknowledgment = get_encouragement_message("adequate", evaluation['score'])
+            message = f"{acknowledgment} {question_data['question']}"
         else:
             action = "inadequate_move_on"
-            encouragement = get_encouragement_message("move_on")
+            encouragement = get_encouragement_message("move_on", evaluation['score'])
             message = f"{encouragement} {question_data['question']}"
         
         return {
@@ -265,4 +260,4 @@ def clear_session(session_id):
 
 if __name__ == "__main__":
     print("Production-ready interview bot")
-    print("For Streamlit UI: streamlit run streamlit_ui.py")
+    print("For Streamlit UI: streamlit run app.py")

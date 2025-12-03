@@ -1,4 +1,3 @@
-# /Users/ramcharan/Desktop/ai-interview-another-appr/projecttt/app.py
 """
 Streamlit UI for Aikam Interview Bot
 Beautiful, professional interview interface
@@ -62,20 +61,30 @@ st.markdown("""
         box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         text-align: center;
     }
-    .round-badge {
-        background: #667eea;
-        color: white;
-        padding: 5px 15px;
-        border-radius: 20px;
-        font-weight: 600;
-        display: inline-block;
-    }
     h1, h2, h3 {
         color: white;
     }
     .stTextArea label, .stTextInput label {
         color: white !important;
         font-weight: 600;
+    }
+    .action-badge {
+        background: #667eea;
+        color: white;
+        padding: 3px 10px;
+        border-radius: 10px;
+        font-size: 11px;
+        font-weight: 600;
+        margin-left: 5px;
+    }
+    .rephrased-badge {
+        background: #ff6b6b;
+        color: white;
+        padding: 3px 10px;
+        border-radius: 10px;
+        font-size: 11px;
+        font-weight: 600;
+        margin-left: 5px;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -93,6 +102,8 @@ if 'job_desc_value' not in st.session_state:
     st.session_state.job_desc_value = ""
 if 'resume_value' not in st.session_state:
     st.session_state.resume_value = ""
+if 'current_round' not in st.session_state:
+    st.session_state.current_round = "HR"
 
 # Header
 st.title("🎯 Aikam AI Interview Bot")
@@ -120,7 +131,7 @@ with st.sidebar:
         )
         
         if st.button("🚀 Start Interview", type="primary", use_container_width=True):
-            # Save to different session state keys
+            # Save to session state
             st.session_state.job_desc_value = job_description
             st.session_state.resume_value = resume
             st.session_state.interview_started = True
@@ -134,15 +145,17 @@ with st.sidebar:
                 ""
             )
             
+            # Store in format matching backend structure
             st.session_state.chat_history.append({
-                "type": "bot",
-                "message": response['question'],
-                "action": response['action'],
-                "round": response['round'],
+                "question": response['question'],
+                "answer": "",
+                "score_out_of_10": response.get('score_out_of_10', 0),
+                "round": st.session_state.current_round,
                 "is_rephrased": response['is_rephrased'],
-                "score": response.get('score_out_of_10', 0),
-                "timestamp": datetime.now().isoformat(),
-                "time_info": response.get('time_info', {})
+                "is_inadequate": response.get('is_inadequate', False),
+                "action": response['action'],
+                "evaluation_reason": response.get('evaluation_reason', ''),
+                "timestamp": datetime.now().isoformat()
             })
             
             st.rerun()
@@ -154,23 +167,11 @@ with st.sidebar:
         # Get current bot instance
         bot = _bot_instances.get(st.session_state.session_id)
         if bot:
-            time_info = bot._get_current_time_info()
-            
-            if time_info:
-                st.markdown("#### ⏱️ Timer")
-                col1, col2 = st.columns(2)
-                with col1:
-                    st.metric("Elapsed", f"{time_info['elapsed_minutes']:.1f} min")
-                with col2:
-                    st.metric("Remaining", f"{time_info['remaining_minutes']:.1f} min")
-                
-                st.markdown(f"**Current Round:** {time_info['expected_round']}")
-                st.progress(min(time_info['elapsed_minutes'] / 20, 1.0))
-                
-                st.markdown("#### 📊 Interview Stats")
-                summary = bot.get_summary()
-                st.metric("Questions Asked", summary['question_count'])
-                st.metric("Total Score", summary['total_score'])
+            st.markdown("#### 📊 Interview Stats")
+            summary = bot.get_summary()
+            st.metric("Questions Asked", summary['question_count'])
+            st.metric("Total Score", summary['total_score'])
+            st.metric("Current Round", st.session_state.current_round)
         
         if st.button("🛑 End Interview", type="secondary", use_container_width=True):
             st.session_state.interview_ended = True
@@ -185,29 +186,34 @@ if st.session_state.interview_started and not st.session_state.interview_ended:
     chat_container = st.container()
     
     with chat_container:
-        for entry in st.session_state.chat_history:
-            if entry['type'] == 'bot':
-                is_rephrase = entry.get('is_rephrased', False)
-                css_class = "rephrase-message" if is_rephrase else "bot-message"
-                
-                st.markdown(f"""
-                <div class="{css_class}">
-                    <strong>🤖 Aikam:</strong><br>
-                    {entry['message']}
-                    <br><br>
-                    <small>Round: <span class="round-badge">{entry['round']}</span> | 
-                    Action: {entry['action']}</small>
-                </div>
-                """, unsafe_allow_html=True)
+        for i, entry in enumerate(st.session_state.chat_history):
+            # Display question
+            is_rephrase = entry.get('is_rephrased', False)
+            css_class = "rephrase-message" if is_rephrase else "bot-message"
             
-            elif entry['type'] == 'user':
+            action_html = f'<span class="action-badge">{entry.get("action", "N/A")}</span>'
+            rephrase_html = '<span class="rephrased-badge">Rephrased</span>' if is_rephrase else ''
+            
+            st.markdown(f"""
+            <div class="{css_class}">
+                <strong>🤖 Aikam:</strong><br>
+                {entry['question']}
+                <br><br>
+                <div style="font-size: 11px; color: #666;">
+                    {action_html} {rephrase_html}
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            # Display answer if exists AND it's not the last entry (waiting for answer)
+            if entry.get('answer') and entry.get('answer').strip():
                 st.markdown(f"""
                 <div class="user-message">
                     <strong>👤 You:</strong><br>
-                    {entry['message']}
+                    {entry['answer']}
                 </div>
                 """, unsafe_allow_html=True)
-    
+
     # Input area
     st.markdown("---")
     
@@ -228,12 +234,9 @@ if st.session_state.interview_started and not st.session_state.interview_ended:
             skip_button = st.form_submit_button("Skip ⏭️", use_container_width=True)
         
         if submit_button and user_answer.strip():
-            # Add user message
-            st.session_state.chat_history.append({
-                "type": "user",
-                "message": user_answer,
-                "timestamp": datetime.now().isoformat()
-            })
+            # Update last entry with user's answer
+            if st.session_state.chat_history:
+                st.session_state.chat_history[-1]['answer'] = user_answer
             
             # Get bot response
             with st.spinner("🤔 Aikam is thinking..."):
@@ -241,51 +244,57 @@ if st.session_state.interview_started and not st.session_state.interview_ended:
                     st.session_state.session_id,
                     st.session_state.job_desc_value,
                     st.session_state.resume_value,
-                    "HR",
+                    st.session_state.current_round,
                     user_answer
                 )
             
-            # Add bot response
+            # Update last entry with evaluation
+            if st.session_state.chat_history:
+                st.session_state.chat_history[-1]['score_out_of_10'] = response.get('score_out_of_10', 0)
+                st.session_state.chat_history[-1]['is_inadequate'] = response.get('is_inadequate', False)
+                st.session_state.chat_history[-1]['evaluation_reason'] = response.get('evaluation_reason', '')
+            
+            # Add new question
             st.session_state.chat_history.append({
-                "type": "bot",
-                "message": response['question'],
-                "action": response['action'],
-                "round": response['round'],
+                "question": response['question'],
+                "answer": "",
+                "score_out_of_10": 0,
+                "round": st.session_state.current_round,
                 "is_rephrased": response['is_rephrased'],
-                "score": response.get('score_out_of_10', 0),
-                "evaluation_reason": response.get('evaluation_reason', ''),
-                "timestamp": datetime.now().isoformat(),
-                "time_info": response.get('time_info', {})
+                "is_inadequate": False,
+                "action": response['action'],
+                "evaluation_reason": "",
+                "timestamp": datetime.now().isoformat()
             })
             
             st.rerun()
         
         elif skip_button:
-            # Skip question (send empty answer)
-            st.session_state.chat_history.append({
-                "type": "user",
-                "message": "[Skipped]",
-                "timestamp": datetime.now().isoformat()
-            })
+            # Update last entry with skipped answer
+            if st.session_state.chat_history:
+                st.session_state.chat_history[-1]['answer'] = "[Skipped]"
+                st.session_state.chat_history[-1]['score_out_of_10'] = 0
             
             with st.spinner("🤔 Moving to next question..."):
                 response = get_aikam_response(
                     st.session_state.session_id,
                     st.session_state.job_desc_value,
                     st.session_state.resume_value,
-                    "HR",
+                    st.session_state.current_round,
                     ""
                 )
             
+            # Add new question
             st.session_state.chat_history.append({
-                "type": "bot",
-                "message": response['question'],
-                "action": response['action'],
-                "round": response['round'],
+                "question": response['question'],
+                "answer": "",
+                "score_out_of_10": 0,
+                "round": st.session_state.current_round,
                 "is_rephrased": response['is_rephrased'],
-                "score": response.get('score_out_of_10', 0),
-                "timestamp": datetime.now().isoformat(),
-                "time_info": response.get('time_info', {})
+                "is_inadequate": False,
+                "action": response['action'],
+                "evaluation_reason": "",
+                "timestamp": datetime.now().isoformat()
             })
             
             st.rerun()
@@ -297,11 +306,10 @@ elif st.session_state.interview_ended:
     bot = _bot_instances.get(st.session_state.session_id)
     if bot:
         summary = bot.get_summary()
-        time_info = bot._get_current_time_info()
         
         st.markdown("### 📊 Interview Summary")
         
-        col1, col2, col3, col4 = st.columns(4)
+        col1, col2, col3 = st.columns(3)
         
         with col1:
             st.markdown('<div class="metric-card">', unsafe_allow_html=True)
@@ -315,26 +323,30 @@ elif st.session_state.interview_ended:
         
         with col3:
             st.markdown('<div class="metric-card">', unsafe_allow_html=True)
-            st.metric("Duration", f"{time_info['elapsed_minutes']:.1f} min")
-            st.markdown('</div>', unsafe_allow_html=True)
-        
-        with col4:
-            st.markdown('<div class="metric-card">', unsafe_allow_html=True)
             avg_score = summary['total_score'] / max(summary['question_count'], 1)
             st.metric("Avg Score", f"{avg_score:.1f}")
             st.markdown('</div>', unsafe_allow_html=True)
     
-    # Prepare JSON export
+    # Prepare JSON export in backend-compatible format
     export_data = {
         "session_id": st.session_state.session_id,
         "job_description": st.session_state.job_desc_value,
         "resume": st.session_state.resume_value,
         "interview_start": st.session_state.chat_history[0]['timestamp'] if st.session_state.chat_history else None,
         "interview_end": datetime.now().isoformat(),
-        "total_questions": summary['question_count'] if bot else 0,
-        "total_score": summary['total_score'] if bot else 0,
-        "chat_history": st.session_state.chat_history,
-        "summary": summary if bot else {}
+        "conversation_history": [
+            {
+                "question": entry['question'],
+                "answer": entry.get('answer', ''),
+                "score_out_of_10": entry.get('score_out_of_10', 0),
+                "round": entry.get('round', 'HR'),
+                "is_rephrased": entry.get('is_rephrased', False),
+                "is_inadequate": entry.get('is_inadequate', False),
+                "action": entry.get('action', ''),
+                "evaluation_reason": entry.get('evaluation_reason', '')
+            }
+            for entry in st.session_state.chat_history
+        ]
     }
     
     json_str = json.dumps(export_data, indent=2)
@@ -372,17 +384,8 @@ elif not st.session_state.interview_started:
         <ul style="font-size: 1em; color: #666;">
             <li>🎯 AI-powered interview questions</li>
             <li>🔄 Intelligent question rephrasing</li>
-            <li>⏱️ Time-based round transitions (20 min total)</li>
             <li>📊 Real-time scoring and evaluation</li>
             <li>💾 Download interview transcript as JSON</li>
-        </ul>
-        <br>
-        <h3>🎓 Interview Rounds:</h3>
-        <ul style="font-size: 1em; color: #666;">
-            <li><strong>HR (4 min):</strong> Behavioral and situational questions</li>
-            <li><strong>Resume Validation (6 min):</strong> Questions about candidate's experience</li>
-            <li><strong>JD Fitment (6 min):</strong> Job-specific technical questions</li>
-            <li><strong>Personality Assessment (4 min):</strong> Work values and preferences</li>
         </ul>
     </div>
     """, unsafe_allow_html=True)
